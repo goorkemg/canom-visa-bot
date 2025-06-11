@@ -21,8 +21,19 @@ def check_website():
         elapsed = time.time() - start
         ms = round(elapsed * 1000)
 
+        # SLOT KONTROLÜ (içerikte boş randevu var mı?)
+        content = response.text.lower()
+        if "there are no available appointments" in content or "no available appointments" in content:
+            print("❌ Randevu yok.")
+        elif "available appointments" in content or "appointments are available" in content:
+            # SLOT VAR!
+            send_telegram_message("📅 🎉 RANDEVU BULUNDU CANOM! HEMEN GİR 💥")
+        else:
+            print("ℹ️ Slot durumu anlaşılamadı, sadece süre raporlanacak.")
+
+        # Süre raporu
         if response.status_code == 200:
-            message = f"✅ Konsolosluk sitesi erişildi.\nYanıt süresi: {ms} ms"
+            message = f"✅ Siteye erişildi.\nYanıt süresi: {ms} ms"
         else:
             message = f"⚠️ HTTP Hatası: {response.status_code}"
 
