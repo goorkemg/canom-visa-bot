@@ -16,31 +16,12 @@ def send_telegram_message(message):
 
 def check_website():
     try:
-        start = time.time()
         response = requests.get(URL)
-        elapsed = time.time() - start
-        ms = round(elapsed * 1000)
+        content = response.text
 
-        # SLOT KONTROLÜ (içerikte boş randevu var mı?)
-        content = response.text.lower()
-        if "there are no available appointments" in content or "no available appointments" in content:
-            print("❌ Randevu yok.")
-        elif "available appointments" in content or "appointments are available" in content:
-            # SLOT VAR!
-            send_telegram_message("📅 🎉 RANDEVU BULUNDU CANOM! HEMEN GİR 💥")
-        else:
-            print("ℹ️ Slot durumu anlaşılamadı, sadece süre raporlanacak.")
-
-        # Süre raporu
-        if response.status_code == 200:
-            message = f"✅ Siteye erişildi.\nYanıt süresi: {ms} ms"
-        else:
-            message = f"⚠️ HTTP Hatası: {response.status_code}"
-
-        if ms > 1200:
-            message += "\n⚠️ Sistem çok yavaş olabilir!"
-
-        send_telegram_message(message)
+        # ❗ Sayfa içeriğini Telegram'da gönder (ilk 1000 karakter)
+        snippet = content[:1000]
+        send_telegram_message("📄 Sayfa içeriği (ilk 1000 karakter):\n\n" + snippet)
 
     except Exception as e:
         send_telegram_message(f"❌ Siteye bağlanılamadı: {e}")
