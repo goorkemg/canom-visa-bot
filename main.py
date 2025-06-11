@@ -72,4 +72,4 @@ keep_alive()
 
 while True:
     check_site()
-    time.sleep(300)  # 5 dakikada bir çalıştır
+    time.sleep(60)  # 1 dakikada bir çalıştır
