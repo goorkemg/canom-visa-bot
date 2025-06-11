@@ -1,17 +1,43 @@
 import requests
+import time
+from keep_alive import keep_alive
 
 TOKEN = "7310358399:AAGJvaTRwrTS1olXfoHxQ0SiS31jvFg9JzI"
 CHAT_ID = 1704060687
+URL = "https://www.ustraveldocs.com/tr/tr-niv-appointments.asp"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "text/html"
+}
 
 def send_telegram_message(message):
     try:
-        r = requests.post(
+        requests.post(
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
             data={"chat_id": CHAT_ID, "text": message}
         )
-        print("Durum:", r.status_code)
-        print("Yanıt:", r.text)
     except Exception as e:
-        print("Hata:", e)
+        print(f"Telegram mesajı gönderilemedi: {e}")
 
-send_telegram_message("🔔 Telegram testi çalışıyor mu canom?")
+def check_site():
+    try:
+        response = requests.get(URL, headers=HEADERS, timeout=15)
+        if response.status_code == 200:
+            content = response.text.lower()
+            if "no appointments available" in content or "please check back later" in content:
+                print("❌ Slot yok.")
+            elif "next available appointment" in content or "available appointment" in content:
+                send_telegram_message("🎉📅 RANDEVU BULUNMUŞ OLABİLİR!\nHemen kontrol et canom 💥")
+            else:
+                print("🔍 Anahtar kelime bulunamadı.")
+        else:
+            send_telegram_message(f"⚠️ HTTP HATA: {response.status_code}")
+    except Exception as e:
+        send_telegram_message(f"❌ HATA OLUŞTU: {e}")
+
+keep_alive()
+
+while True:
+    check_site()
+    time.sleep(300)  # 5 dakikada bir
