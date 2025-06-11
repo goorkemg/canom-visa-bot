@@ -5,7 +5,8 @@ from keep_alive import keep_alive
 TOKEN = "7310358399:AAGJvaTRwrTS1olXfoHxQ0SiS31jvFg9JzI"
 CHAT_ID = 1704060687
 
-URL = "https://ais.usvisa-info.com/en-tr/niv"
+# Güncellenmiş hedef URL
+URL = "https://www.ustraveldocs.com/tr/tr-niv-appointments.asp"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
@@ -27,9 +28,9 @@ def check_site():
         if response.status_code == 200:
             content = response.text.lower()
 
-            if "no appointments available" in content:
+            if "no appointments available" in content or "please check back later" in content:
                 print("❌ Slot yok.")
-            elif "available appointment" in content or "appointments available" in content:
+            elif "next available appointment" in content or "available appointment" in content:
                 send_telegram_message("🎉📅 RANDEVU BULUNMUŞ OLABİLİR!\nHemen kontrol et canom 💥")
             else:
                 print("🔍 Anahtar kelime bulunamadı.")
