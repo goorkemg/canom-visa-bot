@@ -63,7 +63,7 @@ def check_news():
     try:
         news_feed_url = "https://news.google.com/rss/search?q=us+visa+appointment+turkey"
         resp = requests.get(news_feed_url)
-        soup = BeautifulSoup(resp.text, "xml")
+        soup = BeautifulSoup(resp.text, "lxml-xml")
         items = soup.find_all("item")
         for item in items[:1]:
             title = item.title.text
