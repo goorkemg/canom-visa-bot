@@ -1,75 +1,96 @@
 import requests
 import time
+import statistics
 from keep_alive import keep_alive
+from bs4 import BeautifulSoup
 
 TOKEN = "7310358399:AAGJvaTRwrTS1olXfoHxQ0SiS31jvFg9JzI"
 CHAT_ID = 1704060687
-URL = "https://www.ustraveldocs.com/tr/tr-niv-appointments.asp"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0",
-    "Accept": "text/html"
-}
+SITE_URL = "https://ais.usvisa-info.com/en-tr/niv"
 
-response_times = []  # Son 10 ölçümü tutmak için
+last_10_latencies = []
 
 def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": message}
+    requests.post(url, data=data)
+
+def check_latency():
     try:
-        requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            data={"chat_id": CHAT_ID, "text": message}
-        )
+        start_time = time.time()
+        response = requests.get(SITE_URL, timeout=10)
+        latency = round((time.time() - start_time) * 1000)
+
+        last_10_latencies.append(latency)
+        if len(last_10_latencies) > 10:
+            last_10_latencies.pop(0)
+
+        avg_latency = round(statistics.mean(last_10_latencies))
+
+        if avg_latency > 1500:
+            yorum = "🔴 AŞIRI YOĞUNLUK — Açılma olasılığı yüksek!"
+        elif avg_latency > 800:
+            yorum = "🟠 Orta yoğunluk"
+        else:
+            yorum = "🟢 Sistem sakin"
+
+        msg = f"""⏱️ Ping Takibi
+Anlık Gecikme: {latency} ms
+📊 Son 10 Ortalama: {avg_latency} ms
+🧠 Yorum: {yorum}"""
+
+        send_telegram_message(msg)
+
     except Exception as e:
-        print(f"Telegram mesajı gönderilemedi: {e}")
-
-def analyze_response_time(rt_ms):
-    global response_times
-
-    # Listeyi 10 elemana sabitle
-    response_times.append(rt_ms)
-    if len(response_times) > 10:
-        response_times.pop(0)
-
-    avg = sum(response_times) / len(response_times)
-    fark = rt_ms - avg
-    fark_yuzde = (fark / avg) * 100
-
-    # Yorum üret
-    if rt_ms < 800:
-        durum = "🟢 Düşük yoğunluk. Sistem sakin."
-        olasilik = "❌ Açılma ihtimali düşük."
-    elif rt_ms < 1400:
-        durum = "🟡 Orta yoğunluk. Sistemde hareket olabilir."
-        olasilik = "⚠️ Açılma ihtimali var, dikkatli ol."
-    else:
-        durum = "🔴 Yüksek yoğunluk! Sistem zorlanıyor."
-        olasilik = "✅ Açılma ihtimali yüksek. Hemen hazır ol!"
-
-    mesaj = f"""✅ Siteye erişildi.
-Yanıt süresi: {rt_ms} ms
-📊 Son 10 ortalama: {int(avg)} ms
-📈 Gecikme: {'+' if fark >= 0 else ''}{int(fark_yuzde)}%
-{durum}
-{olasilik}"""
-
-    return mesaj
+        send_telegram_message(f"❗ Ping kontrolü hatası: {e}")
 
 def check_site():
     try:
-        start = time.time()
-        response = requests.get(URL, headers=HEADERS, timeout=15)
-        end = time.time()
-
-        if response.status_code == 200:
-            rt_ms = int((end - start) * 1000)
-            yorum = analyze_response_time(rt_ms)
-            send_telegram_message(yorum)
+        response = requests.get(SITE_URL, timeout=10)
+        if "no appointments available" in response.text.lower():
+            slot_status = "❌ Randevu bulunamadı."
+        elif "available" in response.text.lower():
+            slot_status = "✅ RANDEVU AÇILMIŞ OLABİLİR!"
         else:
-            send_telegram_message(f"⚠️ HTTP Hata: {response.status_code}")
-    except Exception as e:
-        send_telegram_message(f"❌ Hata oluştu: {e}")
+            slot_status = "🤖 Slot bilgisi analiz edilemiyor."
 
+        send_telegram_message(f"📅 Slot Durumu Güncellemesi:\n{slot_status}")
+
+    except Exception as e:
+        send_telegram_message(f"❗ Slot kontrol hatası: {e}")
+
+def check_news():
+    try:
+        news_feed_url = "https://news.google.com/rss/search?q=us+visa+appointment+turkey"
+        resp = requests.get(news_feed_url)
+        soup = BeautifulSoup(resp.text, "xml")
+        items = soup.find_all("item")
+        for item in items[:1]:
+            title = item.title.text
+            link = item.link.text
+            send_telegram_message(f"📰 Haber Takibi:\n{title}\n{link}")
+    except Exception as e:
+        send_telegram_message(f"❗ Haber hatası: {e}")
+
+def check_twitter_simulation():
+    try:
+        keywords = ["randevu açıldı", "slot available", "student visa opened"]
+        fake_tweet = "Hi everyone, US student visa slots are now open in Ankara!"  # simülasyon
+        if any(kw in fake_tweet.lower() for kw in keywords):
+            send_telegram_message(f"🐦 Twitter Simülasyonu:\n⚠️ {fake_tweet}")
+    except Exception as e:
+        send_telegram_message(f"❗ Twitter hatası: {e}")
+
+# SUNUCU AKTİF TUT
 keep_alive()
 
+counter = 0
+
 while True:
-    check_site()
-    time.sleep(60)  # 1 dakikada bir çalıştır
+    check_latency()  # her dakika
+    if counter % 5 == 0:  # her 5 dakikada bir
+        check_site()
+        check_news()
+        check_twitter_simulation()
+    counter += 1
+    time.sleep(60)  # her döngü 1 dakika
