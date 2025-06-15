@@ -27,15 +27,21 @@ def check_embassy_notice():
         response = requests.get(URL, timeout=10)
         if response.status_code != 200:
             return "⚠️ Sayfaya erişilemedi (HTTP " + str(response.status_code) + ")"
-        soup = BeautifulSoup(response.text, "html.parser")
+        
+        content = response.text
+        # Eğer sayfa HTML değilse ya da eksik yüklendiyse kontrol et
+        if "<html" not in content.lower() or "<!doctype html" not in content.lower():
+            return "⚠️ Sayfa eksik yüklenmiş olabilir, kontrol atlandı."
+
+        soup = BeautifulSoup(content, "html.parser")
         page_text = soup.get_text().lower()
+        
         if KEY_PHRASE.lower() in page_text:
             return f"🟡 Uyarı hâlâ duruyor.\n💬 Mesaj: \"{KEY_PHRASE}\""
         else:
             return "🟢 UYARI KALKTI! Açılmış olabilir, lütfen kontrol et!"
     except Exception as e:
         return f"❌ Hata: {e}"
-
 def ping_site():
     try:
         start = time.time()
