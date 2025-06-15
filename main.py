@@ -1,100 +1,67 @@
 import requests
 import time
-from bs4 import BeautifulSoup
-from keep_alive import keep_alive
 
-# Telegram bot bilgileri
+# Telegram bilgileri
 TOKEN = "7310358399:AAGJvaTRwrTS1olXfoHxQ0SiS31jvFg9JzI"
 CHAT_ID = 1704060687
-URL = "https://tr.usembassy.gov/visas/"
-ping_results = []
 
-# 🟢 Ping fonksiyonu – optimize edilmiş hali
-def ping_site():
+URL = "https://tr.usembassy.gov/visas/"
+notified = False
+ping_list = []
+
+def check_vize_durumu():
     try:
         start = time.time()
-        response = requests.get(URL, timeout=5, allow_redirects=False, stream=False)
+        response = requests.get(URL, timeout=15)
         end = time.time()
-        if response.status_code in [200, 301, 302]:
-            return round((end - start) * 1000)
-        else:
-            return -1
-    except requests.exceptions.RequestException:
-        return -1
+        ping = int((end - start) * 1000)
+        ping_list.append(ping)
 
-# 🔍 Site içeriğini kontrol eden fonksiyon
-def check_embassy_notice_advanced():
-    try:
-        response = requests.get(URL, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        body_text = soup.get_text().lower()
+        # Sadece son 10 ping'i tut
+        if len(ping_list) > 10:
+            ping_list.pop(0)
 
-        keywords = [
-            "visas",
-            "select a u.s. embassy or consulate",
-            "transition to new appointment platform",
-            "immigrant visa",
-            "nonimmigrant visa"
-        ]
+        # Sayfa açıldı mı?
+        acildi = "coming soon" not in response.text.lower()
+        return acildi, ping
 
-        missing = [word for word in keywords if word not in body_text]
-        if len(missing) >= 3:
-            return f"⚠️ Sayfa eksik veya ağır şekilde kırpılmış olabilir. (Eksik: {', '.join(missing)})"
-        else:
-            return "🟢 UYARI KALKTI! Açılmış olabilir, lütfen kontrol et!"
     except Exception as e:
-        return f"⚠️ Hata oluştu: {str(e)}"
+        print("Hata:", e)
+        return False, 9999
 
-# 🧠 Ping yorum fonksiyonu
-def yorumla_ping(ping_avg):
-    if ping_avg < 300:
+def yorum_yap(ping_ort):
+    if ping_ort < 300:
         return "🟢 Sistem sakin"
-    elif ping_avg < 800:
-        return "🟠 Yoğunluk yüksek, dikkatli ol"
+    elif ping_ort < 800:
+        return "🟠 Yoğunluk orta"
     else:
-        return "🔴 Aşırı yoğunluk, sayfa çökmüş olabilir"
+        return "🔴 Sistem aşırı yoğun"
 
-# 📩 Telegram mesaj gönderici
-def send_telegram_message(message):
-    try:
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        payload = {"chat_id": CHAT_ID, "text": message}
-        requests.post(url, data=payload)
-    except:
-        pass
+def send_telegram(msg):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": msg}
+    requests.post(url, data=data)
 
-# 🔁 Ana döngü fonksiyonu
-def run_bot():
-    counter = 0
-    while True:
-        # 1. Ping ölç
-        ping = ping_site()
-        if ping != -1:
-            ping_results.append(ping)
-            if len(ping_results) > 5:
-                ping_results.pop(0)
+i = 0
+while True:
+    vize_acik, ping = check_vize_durumu()
+    i += 1
 
-        # 2. Her 5 dk'da bir detaylı kontrol
-        if counter % 5 == 0:
-            ping_avg = sum(ping_results) / len(ping_results) if ping_results else 0
-            yorum = yorumla_ping(ping_avg)
+    # 5 dakikada bir özet mesaj gönder
+    if i % 5 == 0:
+        ort_ping = int(sum(ping_list) / len(ping_list)) if ping_list else 9999
+        yorum = yorum_yap(ort_ping)
+        durum = "🟢 UYARI KALKTI! Açılmış olabilir, lütfen kontrol et!" if vize_acik else "🔴 Uyarı hâlâ duruyor. Henüz açılmamış olabilir."
 
-            if ping_avg > 1500:
-                notice_status = "⚠️ Sistem çok yavaş, içerik kontrolü atlandı."
-            else:
-                notice_status = check_embassy_notice_advanced()
+        mesaj = f"""📡 Güncelleme (Her 5 dk bir):
+{durum}
+⏱️ Ping Ortalama (Son 5 dk): {ort_ping} ms
+🧠 Yorum: {yorum}
+"""
+        send_telegram(mesaj)
 
-            msg = (
-                "📡 Güncelleme (Her 5 dk bir):\n"
-                f"{notice_status}\n"
-                f"⏱️ Ping Ortalama (Son 5 dk): {int(ping_avg)} ms\n"
-                f"🧠 Yorum: {yorum}"
-            )
-            send_telegram_message(msg)
+    if not notified and vize_acik:
+        send_telegram("📢 VİZE BAŞVURULARI AÇILDI! 👉 https://ais.usvisa-info.com")
+        notified = True
 
-        counter += 1
-        time.sleep(60)
-
-# 🔧 Keep alive ve başlat
-keep_alive()
-run_bot()
+    time.sleep(60)  # 1 dakikada bir ping ölçümü
